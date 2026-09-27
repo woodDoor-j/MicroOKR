@@ -40,6 +40,7 @@ def _save_state() -> None:
         payload = {
             "tasks": st.session_state.get("tasks", []),
             "goal": st.session_state.get("goal", ""),
+            "members": st.session_state.get("members", ""),
             "weekly_report": st.session_state.get("weekly_report", ""),
             "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
@@ -80,20 +81,41 @@ def _extract_json_array(content: str) -> list:
     raise ValueError("未能从模型返回中解析出 JSON 数组")
 
 
-def decompose_okr(goal: str, api_key: str) -> list[dict]:
-    """调用智谱 GLM-4，把团队核心目标拆解为 KR 与成员任务清单。"""
+def decompose_okr(goal: str, api_key: str, members: str = "") -> list[dict]:
+    """调用智谱 GLM-4，把团队核心目标拆解为 KR 与成员任务清单。
+
+    members 为用户输入的团队成员名单（顿号/逗号分隔）；为空则让 AI 自行生成成员。
+    """
     if not goal or not goal.strip():
         raise ValueError("请先输入团队核心目标")
     if not api_key or not api_key.strip():
         raise ValueError("请先在左侧栏填写智谱 API Key")
 
+    # 解析成员名单：支持顿号、中英文逗号、分号、换行分隔
+    member_list = [
+        m.strip()
+        for m in re.split(r"[、,，;；\n]+", members or "")
+        if m.strip()
+    ]
+
+    if member_list:
+        names = "、".join(member_list)
+        member_rule = (
+            f"团队成员名单：{names}\n"
+            f"请只从上述名单中选择成员来拆解任务，不要虚构任何其他成员；"
+            f"member 字段必须严格使用名单中的姓名。\n"
+        )
+    else:
+        member_rule = "请自行生成 3-5 位中文成员姓名来拆解任务。\n"
+
     prompt = (
         "你是一个团队目标拆解专家。请根据下面给定的团队核心目标，"
-        "拆解出 3-5 位团队成员的关键结果与具体任务。\n"
+        "拆解出团队成员的关键结果与具体任务。\n"
+        f"{member_rule}"
         "严格只返回一个 JSON 数组，不要包含任何解释性文字、不要使用 Markdown 代码块标记。\n"
         "JSON 数组中每个元素的结构如下：\n"
         '[{"member": "成员姓名", "kr": "关键结果", "tasks": ["任务1", "任务2"], "status": "未开始"}]\n'
-        "要求：member 为中文姓名；kr 为可量化的关键结果；tasks 为 1-3 条具体任务；"
+        "要求：kr 为可量化的关键结果；tasks 为 1-3 条具体任务；"
         "status 取值仅限 '未开始'、'进行中'、'已完成'。\n"
         f"团队核心目标：{goal}\n"
         "请返回 JSON 数组："
@@ -224,6 +246,8 @@ if "tasks" not in st.session_state:
         ]
 if "goal" not in st.session_state:
     st.session_state.goal = _saved.get("goal", "") if _saved else ""
+if "members" not in st.session_state:
+    st.session_state.members = _saved.get("members", "") if _saved else ""
 if "weekly_report" not in st.session_state:
     st.session_state.weekly_report = _saved.get("weekly_report", "") if _saved else ""
 
@@ -248,6 +272,7 @@ with st.sidebar:
             {"成员": "赵强", "关键结果": "NPS分数达到50", "具体任务": "用户调研访谈", "状态": "进行中"},
         ]
         st.session_state.goal = ""
+        st.session_state.members = ""
         st.session_state.weekly_report = ""
         _save_state()
         st.rerun()
@@ -262,6 +287,14 @@ with st.container(border=True):
         placeholder="例如：在 Q3 末实现产品 DAU 翻倍，并完成核心功能升级",
         label_visibility="visible",
     )
+    members_input = st.text_area(
+        "团队成员名单",
+        value=st.session_state.members,
+        height=80,
+        placeholder="请输入团队成员名字，用顿号或逗号分隔，例如：张三, 李四, 王五",
+        label_visibility="visible",
+        help="留空则由 AI 自动生成 3-5 位成员",
+    )
     if st.button("🤖 AI智能拆解", type="primary", use_container_width=True):
         api_key = st.session_state.get("glm_api_key", "")
         if not goal_input.strip():
@@ -271,9 +304,10 @@ with st.container(border=True):
         else:
             try:
                 with st.spinner("AI 正在分析目标并拆解关键结果..."):
-                    rows = decompose_okr(goal_input, api_key)
+                    rows = decompose_okr(goal_input, api_key, members_input)
                 st.session_state.tasks = rows
                 st.session_state.goal = goal_input
+                st.session_state.members = members_input
                 st.success(f"AI 已基于核心目标拆解出 {len(rows)} 条任务。")
                 _save_state()
                 st.rerun()
