@@ -109,6 +109,7 @@ def decompose_okr(goal: str, api_key: str, members: str = "") -> list[dict]:
         member_rule = "请自行生成 3-5 位中文成员姓名来拆解任务。\n"
 
     prompt = (
+        f"今天是 {datetime.now().strftime('%Y年%m月%d日')}。请基于这个真实日期，计算距离目标截止日期的剩余时间。\n"
         "你是一个团队目标拆解专家。请根据下面给定的团队核心目标，"
         "拆解出团队成员的关键结果与具体任务。\n"
         f"{member_rule}"
@@ -173,12 +174,13 @@ def generate_weekly_report(tasks: list[dict], goal: str, api_key: str) -> str:
     task_summary = "\n".join(lines) if lines else "（暂无任务）"
 
     prompt = (
+        f"今天是 {datetime.now().strftime('%Y年%m月%d日')}。请基于这个真实日期，计算距离目标截止日期的剩余时间，并生成周报。\n"
         "你是一个团队周报撰写专家。请基于以下团队本阶段目标与任务清单，"
         "生成一份专业的团队周报（Markdown 格式）。\n"
         "周报必须包含三个章节：## 本周进展、## 风险与问题、## 下周计划。\n"
         "本周进展需结合任务完成率与各项状态进行总结；"
         "风险与问题需识别未完成或进行中任务的潜在风险点；"
-        "下周计划需给出可执行的动作项。\n"
+        "下周计划需给出可执行的动作项，并基于真实日期计算剩余时间。\n"
         f"团队核心目标：{goal or '（尚未设定）'}\n"
         f"任务总数：{total}，已完成：{done}（完成率 {progress:.1f}%），"
         f"进行中：{doing}，未开始：{todo}\n"
