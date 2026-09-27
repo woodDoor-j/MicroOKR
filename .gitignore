@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Streamlit runtime cache
+.data/
+
+# IDE
+.idea/
+.vscode/
